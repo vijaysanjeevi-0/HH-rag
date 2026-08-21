@@ -58,13 +58,15 @@ src/
 - [ ] Guardrails: off-topic refusal, hallucination checks
 - [ ] Sub-200ms end-to-end latency validation
 
-## Team
+## Team — SVM Gladiators
 
 CSE Cybersecurity — Dhanalakshmi College of Engineering
 
 - Sultan Suhail Ahamed MF
 - Vijay Sanjeevi D
 - Manoj K
+
+We build under **iSquare (Independent Innovators)** — a company founded by our friend.
 
 ---
 
