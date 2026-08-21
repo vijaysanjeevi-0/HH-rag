@@ -24,6 +24,16 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# ===== AI assistant context =====
+# Local notes for AI tools resuming work on this repo — not part of the project
+AGENTS.md
+
+# ===== Backend local-only =====
+# Python venv + raw dataset downloads (index artifacts ARE committed)
+backend/.venv/
+backend/data/
+__pycache__/
+
 # ============================================================
 # PROJECT LOG — what was done so far (comments only, no effect)
 # Full technical context for AI assistants: see AGENTS.md
