@@ -105,10 +105,10 @@ export default function App() {
     payload.append('file', audioBlob, 'query.webm');
     payload.append('stt_provider', config.provider);
     payload.append('chunking_strategy', config.strategy);
-    payload.append('guardrails', config.guardrails);
+    payload.append('guardrails', 'true');
 
     try {
-      const endpoint = import.meta.env.VITE_API_ENDPOINT || 'https://ragi.onrender.com/api/v1/query';
+      const endpoint = import.meta.env.VITE_API_ENDPOINT || 'https://ragi-3f8o.onrender.com/api/v1/query';
       const res = await fetch(endpoint, { method: 'POST', body: payload });
 
       if (!res.ok) throw new Error(`Pipeline execution fault: HTTP ${res.status}`);
@@ -288,18 +288,14 @@ export default function App() {
                   </select>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-emerald-400" />
-                    <span className="text-xs text-slate-300">Grounding Filter</span>
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={14} className="text-emerald-400" />
+                      <span className="text-xs text-slate-300">Grounding Filter</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">ALWAYS ON</span>
+                    </div>
+                    <ShieldCheck size={14} className="text-emerald-400/60" />
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={config.guardrails}
-                    onChange={(e) => setConfig({ ...config, guardrails: e.target.checked })}
-                    className="accent-emerald-400 w-4 h-4 rounded cursor-pointer"
-                  />
-                </div>
               </div>
             </div>
 
@@ -406,7 +402,7 @@ export default function App() {
 
       <footer className="w-full max-w-6xl pt-4 sm:pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-3 relative z-10">
         <div className="flex items-center gap-2 font-mono">
-          <Zap size={14} className="text-emerald-400" /> Target SLA: &lt; 200ms E2E Execution
+          <Zap size={14} className="text-emerald-400" /> Retrieval SLA: &lt; 200ms &bull; E2E reported per query
         </div>
         <div className="flex items-center gap-4">
           <span className="text-emerald-400 font-medium font-mono">#RAGInGoa</span>

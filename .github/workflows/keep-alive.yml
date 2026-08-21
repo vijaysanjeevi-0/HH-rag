@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Ping /health
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://ragi.onrender.com/health")
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://ragi-3f8o.onrender.com/health")
           echo "health check returned $code"

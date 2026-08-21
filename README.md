@@ -9,10 +9,10 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 ## Features
 
 - Voice capture in the browser (WebM/Opus via MediaRecorder)
-- Pluggable STT provider (Sarvam AI / ElevenLabs)
+- Three pluggable STT providers: Sarvam AI (primary), ElevenLabs Scribe and Groq Whisper (fallbacks)
 - Multiple chunking strategies: hybrid semantic + overlap, hierarchical parent-child, metadata-aware
-- Grounding guardrails on generated answers
-- Live latency analytics: last-query, true P50 / P70 / P100 percentiles across all queries (persisted in localStorage)
+- Grounding guardrails: unsafe-input blocking, off-topic refusal with reasons, hallucination checks
+- Live latency analytics: per-query E2E latency plus true P50 / P70 / P100 percentiles (persisted in localStorage)
 
 ## Tech stack
 
@@ -20,7 +20,7 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 | --------- | ------------------------------------- |
 | Frontend  | React 18, Vite 5, Tailwind CSS 3      |
 | Icons     | lucide-react                          |
-| Backend   | Separate service, reached via `VITE_API_ENDPOINT` |
+| Backend   | FastAPI, fastembed embeddings, Groq LLM — deployed on Render |
 | Dataset   | ai4bharat/MSMARCO-XI                  |
 
 ## Architecture
@@ -28,19 +28,19 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 Everything heavy runs on free cloud machines - user devices only ever need a browser.
 
 ```
-Phone / Tablet / Laptop        Netlify                Backend (HF Space)
-(just a browser)               (static files)         (free cloud server)
+Phone / Tablet / Laptop        Netlify                Backend (Render free VM)
+(just a browser)               (static files)         (ragi-3f8o.onrender.com)
       |                            |                        |
    open link --------------> loads UI (~2 MB)                  |
-   record audio -------------------|-------------> POST /query ->|
-      |                            |                      index loaded in
-      |                            |                      *server* RAM,
-      |<--------------- answer JSON <-------------------- search runs there
+   record audio -------------------|-------------> POST /api/v1/query
+       |                            |                      vector index in
+       |                            |                      *server* RAM,
+       |<--------------- answer JSON <-------------------- search runs there
 ```
 
 - **User devices** run nothing but a browser: mic in, speaker out. No install, no local compute.
 - **Netlify** serves the static UI from a CDN - any device that can open a URL works.
-- **Backend** loads the whole vector index into its own RAM once at boot; every query
+- **Backend** loads all three pre-built vector indexes into its own RAM once at boot; every query
   from every device is answered by that machine. We own zero servers.
 
 ## Free-tier budget
@@ -50,25 +50,41 @@ The entire system runs on free tiers - no credit card anywhere in the chain.
 | Layer           | Service                       | Free limit                        | In practice                                          |
 | --------------- | ----------------------------- | --------------------------------- | ---------------------------------------------------- |
 | Frontend host   | Netlify                       | 100 GB bandwidth / month          | App is ~2 MB -> ~50,000 visits / month               |
-| Backend host    | HuggingFace Spaces            | 2 vCPU / 16 GB RAM container      | No request counter; sleeps only after 48 h idle      |
-| Keep-alive      | GitHub Actions cron           | Unlimited on public repos         | Daily ping to `/health` so the Space never sleeps    |
-| Retrieval       | In-memory index               | Container CPU/RAM                 | Sub-ms exact search; thousands of queries/day easily |
-| Speech-to-text  | Sarvam / ElevenLabs free tier | Monthly audio-minutes quota       | ~8 s per question -> ~75-110 voice queries / month   |
-| Fallback input  | Text box in UI                | None                              | Typed questions skip STT -> unlimited queries        |
+| Backend host    | Render web service            | 750 instance-hours / month        | Enough to run one always-on service                  |
+| Keep-alive      | GitHub Actions cron           | Unlimited on public repos         | Ping `/health` every 10 min so Render never sleeps   |
+| Retrieval       | In-memory index               | Container CPU/RAM                 | P50 retrieval 4 ms; thousands of queries/day easily  |
+| Speech-to-text  | Sarvam primary; ElevenLabs + Groq Whisper fallbacks | Monthly quotas per provider | One provider dies mid-demo -> switch in one click    |
+| Answer LLM      | Groq (`openai/gpt-oss-20b`)   | Generous free token quota         | JSON-mode grounded answers, retries + timeouts       |
 
-The only metered layer is STT. Development uses saved transcripts locally so the
-live quota stays untouched until the real demo.
+STT is the only metered layer, and it has two independent backups.
+
+## Measured latency (30-query benchmark, hybrid-semantic strategy)
+
+| Leg                | P50     | P70     | P100    |
+| ------------------ | ------- | ------- | ------- |
+| Embed query        | 250 ms  | 266 ms  | 342 ms  |
+| Vector retrieval   | **4 ms**| **6 ms**| **18 ms**|
+| LLM generation     | 1027 ms | 1404 ms | 5158 ms |
+
+Retrieval leg comfortably beats the 200 ms target; end-to-end time is dominated by
+external STT/LLM API calls, which are reported honestly per query in the UI.
 
 ## Getting started
 
-Prereqs: Node 18+, npm 9+
+Prereqs: Node 18+, npm 9+ (frontend). Python 3.12+ (backend).
 
 ```bash
+# Frontend
 npm install
-npm run dev
+npm run dev            # http://localhost:5173
 ```
 
-Open http://localhost:5173, tap the orb, and ask away.
+```bash
+# Backend (optional locally - a live one already runs at ragi-3f8o.onrender.com)
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+SARVAM_API_KEY=... GROQ_API_KEY=... .venv/bin/python -m uvicorn app:app --port 8000
+```
 
 To point the app at your own backend:
 
@@ -80,30 +96,29 @@ echo "VITE_API_ENDPOINT=https://your-backend.example.com/api/v1/query" > .env
 
 ```
 src/
-├── App.jsx      # Full voice pipeline UI: capture, config, transcript, answers, latency stats
-├── main.jsx     # React entry point
-└── index.css    # Tailwind directives
+├── App.jsx        # Full voice pipeline UI: capture, config, transcript, answers, latency stats
+├── main.jsx       # React entry point
+└── index.css      # Tailwind directives
+backend/
+├── app.py         # FastAPI: POST /api/v1/query, GET /health, GET /benchmark
+├── pipeline.py    # Harness: orchestration, retries, per-leg timings, error recovery
+├── chunking.py    # The three chunking strategies
+├── indexer.py     # In-memory vector search over pre-built indexes
+├── embedder.py    # Query embedding (fastembed local, CPU ONNX)
+├── stt.py         # Sarvam / ElevenLabs / Groq Whisper clients
+├── llm.py         # Groq client, strict-JSON grounded generation
+├── guardrails.py  # Unsafe-input blocklist, off-topic gate, grounding checks
+├── build_index.py # Rebuilds indexes from MSMARCO-XI parquet
+└── index/         # Committed artifacts: 3 strategies x (embeddings + chunks) ~8 MB
 ```
 
 ## Status
 
 - [x] Frontend client (this repo)
-- [ ] STT integration (Sarvam)
-- [ ] Chunking + vector indexing over MSMARCO-XI
-- [ ] Retrieval harness with retries / structured I/O
-- [ ] Guardrails: off-topic refusal, hallucination checks
-- [ ] Sub-200ms end-to-end latency validation
+- [x] STT integration (Sarvam primary, ElevenLabs + Groq Whisper fallbacks)
+- [x] Chunking + vector indexing over MSMARCO-XI (three strategies, committed indexes)
+- [x] Retrieval harness with retries / structured I/O / per-leg telemetry
+- [x] Guardrails: unsafe-input blocklist, off-topic refusal with reasons, grounding checks
+- [x] Latency validation: 30-query benchmark, P50/P70/P100 published above
 
 ## Team — SVM Gladiators
-
-CSE Cybersecurity — Dhanalakshmi College of Engineering
-
-- Sultan Suhail Ahamed MF
-- Vijay Sanjeevi D
-- Manoj K
-
-We build under **iSquare (Independent Innovators)** — a company founded by our friend.
-
----
-
-Built for #RAGInGoa. Licensed under MIT.

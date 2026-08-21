@@ -16,7 +16,7 @@ class Embedder:
         if not config.GEMINI_API_KEY:
             from fastembed import TextEmbedding
             try:
-                self._local = TextEmbedding(model_name=config.EMBED_MODEL, threads=4)
+                self._local = TextEmbedding(model_name=config.EMBED_MODEL, threads=1)
             except TypeError:
                 self._local = TextEmbedding(model_name=config.EMBED_MODEL)
         else:

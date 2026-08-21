@@ -17,7 +17,9 @@ class VectorIndex:
 
     def search(self, query_vec, k):
         scores = self.matrix @ query_vec
-        top = np.argsort(-scores)[:k]
+        k = min(k, scores.shape[0])
+        top = np.argpartition(-scores, k - 1)[:k]
+        top = top[np.argsort(-scores[top])]
         return [(int(i), float(scores[i])) for i in top]
 
     def texts_for(self, hits, expand_parents=True):
@@ -28,7 +30,7 @@ class VectorIndex:
             if expand_parents and self.strategy == "hierarchical":
                 parent_id = chunk["meta"].get("parent")
                 if parent_id:
-                    parent = next((c for c in self.chunks if c["meta"].get("passage_id") == parent_id and c["meta"].get("position", "").startswith("child-0")), None)
+                    parent = self._by_parent_child.get(parent_id)
                     if parent:
                         text = parent["text"]
             out.append({"score": round(score, 4), "passage_id": chunk["meta"]["passage_id"], "position": chunk["meta"].get("position"), "text": text})
@@ -42,7 +44,15 @@ def load_index(strategy, index_dir=None, embedder=None):
     data = np.load(emb_path)["embeddings"]
     with open(meta_path, "r", encoding="utf-8") as f:
         chunks = [json.loads(line) for line in f]
-    return VectorIndex(strategy, data, chunks)
+    idx = VectorIndex(strategy, data, chunks)
+    idx._by_parent_child = {}
+    if strategy == "hierarchical":
+        for c in chunks:
+            pid = c["meta"].get("passage_id")
+            pos = c["meta"].get("position", "")
+            if pos.startswith("child-0") and pid:
+                idx._by_parent_child[pid] = c
+    return idx
 
 
 def embed_query(embedder, text):
