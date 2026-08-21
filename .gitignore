@@ -26,6 +26,7 @@ Thumbs.db
 
 # ============================================================
 # PROJECT LOG — what was done so far (comments only, no effect)
+# Full technical context for AI assistants: see AGENTS.md
 # ============================================================
 #
 # Aug 21 2026 — Project bootstrapped from a single app(1).tsx file:
