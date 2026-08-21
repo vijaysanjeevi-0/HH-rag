@@ -51,7 +51,26 @@ async def transcribe_elevenlabs(audio_bytes):
     raise RuntimeError(f"Unexpected ElevenLabs response: {str(data)[:200]}")
 
 
-PROVIDER_FNS = {"sarvam": transcribe_sarvam, "elevenlabs": transcribe_elevenlabs}
+async def transcribe_groq_whisper(audio_bytes):
+    if not config.GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY not set")
+    data = await _post_with_retry(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        headers={"Authorization": f"Bearer {config.GROQ_API_KEY}"},
+        files={"file": ("query.webm", audio_bytes, "audio/webm")},
+        data={"model": "whisper-large-v3", "response_format": "json"},
+        timeout=config.STT_TIMEOUT,
+    )
+    if data.get("text"):
+        return data["text"]
+    raise RuntimeError(f"Unexpected Groq Whisper response: {str(data)[:200]}")
+
+
+PROVIDER_FNS = {
+    "sarvam": transcribe_sarvam,
+    "elevenlabs": transcribe_elevenlabs,
+    "groq-whisper": transcribe_groq_whisper,
+}
 
 
 async def transcribe(audio_bytes, provider):
