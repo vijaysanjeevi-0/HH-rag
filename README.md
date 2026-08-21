@@ -23,6 +23,42 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 | Backend   | Separate service, reached via `VITE_API_ENDPOINT` |
 | Dataset   | ai4bharat/MSMARCO-XI                  |
 
+## Architecture
+
+Everything heavy runs on free cloud machines - user devices only ever need a browser.
+
+```
+Phone / Tablet / Laptop        Netlify                Backend (HF Space)
+(just a browser)               (static files)         (free cloud server)
+      |                            |                        |
+   open link --------------> loads UI (~2 MB)                  |
+   record audio -------------------|-------------> POST /query ->|
+      |                            |                      index loaded in
+      |                            |                      *server* RAM,
+      |<--------------- answer JSON <-------------------- search runs there
+```
+
+- **User devices** run nothing but a browser: mic in, speaker out. No install, no local compute.
+- **Netlify** serves the static UI from a CDN - any device that can open a URL works.
+- **Backend** loads the whole vector index into its own RAM once at boot; every query
+  from every device is answered by that machine. We own zero servers.
+
+## Free-tier budget
+
+The entire system runs on free tiers - no credit card anywhere in the chain.
+
+| Layer           | Service                       | Free limit                        | In practice                                          |
+| --------------- | ----------------------------- | --------------------------------- | ---------------------------------------------------- |
+| Frontend host   | Netlify                       | 100 GB bandwidth / month          | App is ~2 MB -> ~50,000 visits / month               |
+| Backend host    | HuggingFace Spaces            | 2 vCPU / 16 GB RAM container      | No request counter; sleeps only after 48 h idle      |
+| Keep-alive      | GitHub Actions cron           | Unlimited on public repos         | Daily ping to `/health` so the Space never sleeps    |
+| Retrieval       | In-memory index               | Container CPU/RAM                 | Sub-ms exact search; thousands of queries/day easily |
+| Speech-to-text  | Sarvam / ElevenLabs free tier | Monthly audio-minutes quota       | ~8 s per question -> ~75-110 voice queries / month   |
+| Fallback input  | Text box in UI                | None                              | Typed questions skip STT -> unlimited queries        |
+
+The only metered layer is STT. Development uses saved transcripts locally so the
+live quota stays untouched until the real demo.
+
 ## Getting started
 
 Prereqs: Node 18+, npm 9+
