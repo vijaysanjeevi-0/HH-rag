@@ -23,3 +23,29 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# ============================================================
+# PROJECT LOG — what was done so far (comments only, no effect)
+# ============================================================
+#
+# Aug 21 2026 — Project bootstrapped from a single app(1).tsx file:
+#   - Original moved to ~/Documents/app.tsx
+#   - Vite 5 + React 18 + Tailwind CSS 3.4 project scaffolded around it
+#   - File became src/App.jsx (no TypeScript syntax, renamed to JS)
+#
+# Aug 21 2026 — Cleanup pass on App.jsx:
+#   - Removed AI-tool artifacts: empty {} JSX expressions, leftover
+#     section comments, dead footer links (Documentation / API Spec)
+#   - Replaced hardcoded fake p50/p70/p100 metrics with REAL latency
+#     analytics: nearest-rank percentiles over all queries,
+#     persisted across refreshes via localStorage
+#
+# Aug 21 2026 — Repo setup:
+#   - README.md (overview, requirements mapping, status checklist)
+#   - MIT LICENSE — copyright SVM Gladiators
+#   - This .gitignore
+#   - Team: SVM Gladiators — Sultan Suhail Ahamed MF,
+#     Vijay Sanjeevi D, Manoj K (CSE Cybersecurity,
+#     Dhanalakshmi College of Engineering) — part of iSquare
+#     (Independent Innovators)
+#   - Pushed to github.com/vijaysanjeevi-0/HH-rag
