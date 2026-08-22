@@ -9,6 +9,7 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 ## Features
 
 - Voice capture in the browser (WebM/Opus via MediaRecorder)
+- Audio file upload as an alternative to the mic — WAV / MP3 / M4A / OGG / WebM / FLAC, capped at 10MB client-side (all three STT providers accept these formats)
 - Three pluggable STT providers: Sarvam AI (primary), ElevenLabs Scribe and Groq Whisper (fallbacks)
 - Multiple chunking strategies: hybrid semantic + overlap, hierarchical parent-child, metadata-aware
 - Grounding guardrails: unsafe-input blocking, off-topic refusal with reasons, hallucination checks

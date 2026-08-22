@@ -122,6 +122,7 @@ export default function App() {
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
+  const fileInputRef = useRef(null);
 
   const cleanupStream = useCallback(() => {
     if (streamRef.current) {
@@ -171,10 +172,35 @@ export default function App() {
     }
   };
 
+  const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size === 0) {
+      setErrorMsg('That file appears to be empty.');
+      setSysState(SYSTEM_STATES.FAULT);
+      return;
+    }
+    if (file.size > MAX_AUDIO_BYTES) {
+      setErrorMsg(`Audio too large (${(file.size / (1024 * 1024)).toFixed(1)}MB) — limit is 10MB. Shorter clips transcribe faster.`);
+      setSysState(SYSTEM_STATES.FAULT);
+      return;
+    }
+    setErrorMsg(null);
+    setOutput({ transcript: '', answer: '' });
+    setLatency(0);
+    setTrace(null);
+    setSelectedTs(null);
+    setSysState(SYSTEM_STATES.COMPUTING);
+    executePipeline(file);
+  };
+
   const executePipeline = async (audioBlob) => {
     const t0 = performance.now();
     const payload = new FormData();
-    payload.append('file', audioBlob, 'query.webm');
+    payload.append('file', audioBlob, audioBlob.name || 'query.webm');
     payload.append('stt_provider', config.provider);
     payload.append('chunking_strategy', config.strategy);
     payload.append('guardrails', 'true');
@@ -293,6 +319,21 @@ export default function App() {
           100% { left: 100%; opacity: 0; }
         }
         .animate-pipeline-slide { animation: pipeline-slide 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+        @keyframes rise-in {
+          0% { opacity: 0; transform: translateY(6px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-rise-in { animation: rise-in 0.25s ease-out both; }
+        @keyframes stat-pop {
+          0% { transform: scale(0.85); opacity: 0.4; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-stat-pop { display: inline-block; animation: stat-pop 0.3s cubic-bezier(0.2, 0, 0.2, 1) both; }
+        @keyframes row-in {
+          0% { opacity: 0; transform: translateX(-6px); }
+          100% { opacity: 1; transform: translateX(0); }
+        }
+        .animate-row-in { animation: row-in 0.25s ease-out both; }
       `}</style>
 
       {/* Dynamic Background Glow Orbs */}
@@ -419,6 +460,24 @@ export default function App() {
                   {sysState === SYSTEM_STATES.RESOLVED && <span className="font-medium" style={{ color: currentTheme.accent }}>Pipeline completed in {latency}ms</span>}
                   {sysState === SYSTEM_STATES.FAULT && <span className="text-rose-400 font-medium">Capture faulted</span>}
                 </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".webm,.wav,.mp3,.m4a,.mp4,.ogg,.flac,audio/*"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <div className="mt-3 pt-3 flex items-center justify-center gap-2.5 flex-wrap" style={{ borderTopColor: currentTheme.cardBorder, borderTopWidth: '1px' }}>
+                  <button
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                    disabled={sysState === SYSTEM_STATES.LISTENING || sysState === SYSTEM_STATES.COMPUTING}
+                    className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}
+                  >
+                    Upload audio file
+                  </button>
+                  <span className="text-[9px] font-mono" style={{ color: currentTheme.textMuted }}>wav · mp3 · m4a · ogg · webm · flac · max 10MB</span>
+                </div>
               </div>
             </div>
 
@@ -473,8 +532,10 @@ export default function App() {
                     <div className="h-2.5 rounded w-3/4" style={{ backgroundColor: currentTheme.accentBg }}></div>
                     <div className="h-2.5 rounded w-1/2" style={{ backgroundColor: currentTheme.accentBg }}></div>
                   </div>
+                ) : output.transcript ? (
+                  <span key={output.transcript} className="animate-rise-in">{output.transcript}</span>
                 ) : (
-                  output.transcript || <span className="italic font-light" style={{ color: currentTheme.textMuted }}>Transcribed voice query will appear here...</span>
+                  <span className="italic font-light" style={{ color: currentTheme.textMuted }}>Transcribed voice query will appear here...</span>
                 )}
               </div>
             </div>
@@ -493,8 +554,10 @@ export default function App() {
                     <div className="h-2.5 rounded w-5/6" style={{ backgroundColor: currentTheme.accentBg }}></div>
                     <div className="h-2.5 rounded w-4/6" style={{ backgroundColor: currentTheme.accentBg }}></div>
                   </div>
+                ) : output.answer ? (
+                  <span key={output.answer} className="animate-rise-in">{output.answer}</span>
                 ) : (
-                  output.answer || <span className="italic font-light" style={{ color: currentTheme.textMuted }}>Synthesized response will appear here...</span>
+                  <span className="italic font-light" style={{ color: currentTheme.textMuted }}>Synthesized response will appear here...</span>
                 )}
               </div>
             </div>
@@ -573,7 +636,7 @@ export default function App() {
               <div className="backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
                 <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>Net E2E</div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-xl font-semibold tracking-tight" style={{ color: latency > 200 ? '#F59E0B' : currentTheme.accent }}>
+                  <span key={latency} className="animate-stat-pop text-xl font-semibold tracking-tight" style={{ color: latency > 200 ? '#F59E0B' : currentTheme.accent }}>
                     {latency > 0 ? latency : '--'}
                   </span>
                   <span className="text-[10px] font-mono" style={{ color: currentTheme.textMuted }}>ms</span>
@@ -583,7 +646,7 @@ export default function App() {
               <div className="backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
                 <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>P50 Latency</div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p50 || '--'}</span>
+                  <span key={`p50-${percentiles.p50}`} className="animate-stat-pop text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p50 || '--'}</span>
                   <span className="text-[10px] font-mono" style={{ color: currentTheme.textMuted }}>ms</span>
                 </div>
               </div>
@@ -591,7 +654,7 @@ export default function App() {
               <div className="backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
                 <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>P70 Latency</div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p70 || '--'}</span>
+                  <span key={`p70-${percentiles.p70}`} className="animate-stat-pop text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p70 || '--'}</span>
                   <span className="text-[10px] font-mono" style={{ color: currentTheme.textMuted }}>ms</span>
                 </div>
               </div>
@@ -599,7 +662,7 @@ export default function App() {
               <div className="backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
                 <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>P100 Latency</div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p100 || '--'}</span>
+                  <span key={`p100-${percentiles.p100}`} className="animate-stat-pop text-lg font-medium" style={{ color: currentTheme.textMain }}>{percentiles.p100 || '--'}</span>
                   <span className="text-[10px] font-mono" style={{ color: currentTheme.textMuted }}>ms</span>
                 </div>
               </div>
@@ -642,12 +705,13 @@ export default function App() {
                 ) : (
                   history.map((h, i) => (
                     <div
-                      key={`${h.ts}-${i}`}
+                      key={h.ts}
                       onClick={() => loadTraceFromHistory(h)}
-                      className={`rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-colors ${h.timings && Object.keys(h.timings).length > 0 ? 'cursor-pointer hover:opacity-80' : ''}`}
+                      className={`animate-row-in rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-all hover:-translate-y-px ${h.timings && Object.keys(h.timings).length > 0 ? 'cursor-pointer hover:opacity-80' : ''}`}
                       style={{
                         backgroundColor: selectedTs === h.ts ? currentTheme.accentBg : 'rgba(0,0,0,0.15)',
-                        borderLeft: selectedTs === h.ts ? `2px solid ${currentTheme.accent}` : '2px solid transparent'
+                        borderLeft: selectedTs === h.ts ? `2px solid ${currentTheme.accent}` : '2px solid transparent',
+                        animationDelay: `${Math.min(i * 40, 240)}ms`
                       }}
                       title={h.timings ? `stt ${h.timings.stt_ms ?? '-'} / embed ${h.timings.embed_ms ?? '-'} / retrieve ${h.timings.retrieve_ms ?? '-'} / generate ${h.timings.generate_ms ?? '-'} ms` : undefined}
                     >
