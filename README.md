@@ -9,13 +9,13 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 ## Features
 
 - Voice capture in the browser (WebM/Opus via MediaRecorder)
-- Audio file upload as an alternative to the mic — WAV / MP3 / M4A / OGG / WebM / FLAC, capped at 10MB client-side (all three STT providers accept these formats)
+- Audio file upload as an alternative to the mic — WAV / MP3 / M4A / OGG / WebM / FLAC, capped at 5MB client-side (well within every STT provider's sync limits; ~2.5 min WAV / ~8 min MP3)
 - Three pluggable STT providers: Sarvam AI (primary), ElevenLabs Scribe and Groq Whisper (fallbacks)
 - Multiple chunking strategies: hybrid semantic + overlap, hierarchical parent-child, metadata-aware
 - Grounding guardrails: unsafe-input blocking, off-topic refusal with reasons, hallucination checks
 - Live latency analytics: per-query E2E latency plus true P50 / P70 / P100 percentiles (persisted in localStorage)
 - Pipeline Trace: per-leg telemetry rendered as a proportional timeline (STT -> Embed -> Retrieve -> Generate) after every query, with an in-flight indicator while executing
-- On-device query history: last 20 request/response records with full per-leg timings, persisted in localStorage; click any record to replay its trace
+- On-device query history: last 20 request/response records with full per-leg timings, persisted in localStorage; click any record to replay its trace — docks into its own left rail on wide screens (≥1280px), three-column layout
 - Dual themes: one-click Dawn / Dusk switch across the entire UI
 
 ## Tech stack

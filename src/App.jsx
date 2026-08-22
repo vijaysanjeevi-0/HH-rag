@@ -8,7 +8,7 @@ import {
   Database,
   AlertTriangle,
   ChevronDown,
-  Sparkles,
+  TreePalm,
   ShieldCheck,
   History,
   Zap
@@ -135,6 +135,18 @@ export default function App() {
     return cleanupStream;
   }, [cleanupStream]);
 
+  useEffect(() => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${THEMES[theme].accent}" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2l1-1 1 1h4"/><path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-3l-1-1-1 1h-3"/><path d="M5.89 9.71c-2.15 2.15-2.3 5.47-.35 7.43l4.24-4.25.7-.7.71-.71 2.12-2.12c-1.95-1.96-5.27-1.8-7.42.35"/><path d="M11 15.5c.5 2.5-.17 4.5-1 6.5h4c2-5.5-.5-12-1-14"/></svg>`;
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/svg+xml';
+      document.head.appendChild(link);
+    }
+    link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }, [theme]);
+
   const initializeCapture = async () => {
     try {
       setErrorMsg(null);
@@ -172,7 +184,7 @@ export default function App() {
     }
   };
 
-  const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+  const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 
   const handleFileSelect = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -184,7 +196,7 @@ export default function App() {
       return;
     }
     if (file.size > MAX_AUDIO_BYTES) {
-      setErrorMsg(`Audio too large (${(file.size / (1024 * 1024)).toFixed(1)}MB) — limit is 10MB. Shorter clips transcribe faster.`);
+      setErrorMsg(`Audio too large (${(file.size / (1024 * 1024)).toFixed(1)}MB) — limit is 5MB. Shorter clips transcribe faster.`);
       setSysState(SYSTEM_STATES.FAULT);
       return;
     }
@@ -258,11 +270,67 @@ export default function App() {
     setSelectedTs(h.ts);
   };
 
+  const renderHistoryCard = (extraClass = '', fill = false) => (
+    <div className={`backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300 ${extraClass} ${fill ? 'h-full flex flex-col' : ''}`} style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
+      <div className="px-5 py-3 flex justify-between items-center shrink-0" style={{ borderBottomColor: currentTheme.cardBorder, borderBottomWidth: '1px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+        <div className="text-xs font-medium flex items-center gap-2" style={{ color: currentTheme.textMain }}>
+          <History size={14} style={{ color: currentTheme.accent }} /> Query History
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent }}>{history.length}/{MAX_HISTORY}</span>
+        </div>
+        {history.length > 0 && (
+          <button
+            onClick={clearHistory}
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md transition-opacity hover:opacity-70"
+            style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div className={`p-4 space-y-2 overflow-y-auto ${fill ? 'flex-1 min-h-[240px]' : 'max-h-[280px]'}`}>
+        {history.length === 0 ? (
+          <span className="italic font-light text-xs" style={{ color: currentTheme.textMuted }}>Queries asked on this device will be saved here...</span>
+        ) : (
+          history.map((h, i) => (
+            <div
+              key={h.ts}
+              onClick={() => loadTraceFromHistory(h)}
+              className={`animate-row-in rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-all hover:-translate-y-px ${h.timings && Object.keys(h.timings).length > 0 ? 'cursor-pointer hover:opacity-80' : ''}`}
+              style={{
+                backgroundColor: selectedTs === h.ts ? currentTheme.accentBg : 'rgba(0,0,0,0.15)',
+                borderLeft: selectedTs === h.ts ? `2px solid ${currentTheme.accent}` : '2px solid transparent',
+                animationDelay: `${Math.min(i * 40, 240)}ms`
+              }}
+              title={h.timings ? `stt ${h.timings.stt_ms ?? '-'} / embed ${h.timings.embed_ms ?? '-'} / retrieve ${h.timings.retrieve_ms ?? '-'} / generate ${h.timings.generate_ms ?? '-'} ms` : undefined}
+            >
+              <div className="min-w-0">
+                <div className="text-xs font-medium truncate" style={{ color: currentTheme.textMain }}>{h.transcript || '(unrecognized audio)'}</div>
+                <div className="text-[11px] leading-snug line-clamp-2 mt-0.5" style={{ color: currentTheme.textMuted }}>{h.answer}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: h.refused ? 'rgba(244, 63, 94, 0.12)' : currentTheme.accentBg,
+                    color: h.refused ? '#FB7185' : h.latency > 200 ? '#F59E0B' : currentTheme.accent
+                  }}
+                >
+                  {h.latency}ms
+                </span>
+                <div className="text-[9px] font-mono mt-1" style={{ color: currentTheme.textMuted }}>{new Date(h.ts).toLocaleTimeString()}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   const currentTheme = THEMES[theme];
 
   return (
     <div
-      className="min-h-screen font-sans selection:bg-orange-500/30 flex flex-col items-center justify-between p-3 sm:p-6 md:p-8 relative overflow-x-hidden transition-colors duration-500"
+      className="min-h-screen xl:h-screen font-sans selection:bg-orange-500/30 flex flex-col items-center justify-between p-3 sm:p-6 md:p-8 relative overflow-hidden transition-colors duration-500"
       style={{
         backgroundColor: currentTheme.bg,
         color: currentTheme.textMain,
@@ -343,19 +411,28 @@ export default function App() {
       <div className="absolute bottom-[16%] left-[6%] w-[40vw] h-[40vw] max-w-[480px] max-h-[480px] blur-[130px] rounded-full pointer-events-none animate-float-4 transition-all duration-700" style={{ backgroundColor: currentTheme.glow4, animationDelay: '-12s' }} />
       <div className="absolute top-[45%] left-[32%] w-[32vw] h-[32vw] max-w-[380px] max-h-[380px] blur-[110px] rounded-full pointer-events-none animate-float-1 transition-all duration-700" style={{ backgroundColor: currentTheme.glow1, animationDelay: '-8s' }} />
 
-      <div className="w-full max-w-6xl space-y-4 sm:space-y-6 relative z-10">
+      <div className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1680px] space-y-4 sm:space-y-6 relative z-10 flex flex-col flex-1 min-h-0">
 
         <header className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3.5 py-3.5 px-4 sm:px-6 backdrop-blur-2xl rounded-2xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1),_0_12px_32px_rgba(0,0,0,0.4)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
           <div className="flex items-center gap-3.5">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition-all duration-500" style={{ background: currentTheme.btnGradient, boxShadow: `0 0 20px ${currentTheme.btnGlow}` }}>
-              <Sparkles size={18} className="text-slate-950" />
+              <TreePalm size={24} strokeWidth={1.25} className="text-slate-950" />
             </div>
             <div>
               <h1 className="text-xs sm:text-sm font-semibold tracking-tight flex items-center gap-2" style={{ color: currentTheme.textMain }}>
-                Hacker House Goa
+                RAGI - Voice RAG
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-md" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}>Task 2</span>
               </h1>
-              <p className="text-[11px] font-mono mt-0.5" style={{ color: currentTheme.textMuted }}>Voice RAG Orchestrator &bull; MSMARCO-XI</p>
+              <p className="text-[11px] font-mono mt-0.5 flex items-center gap-1.5" style={{ color: currentTheme.textMuted }}>
+                Hacker House Goa
+                <span className="opacity-40">&bull;</span>
+                <a
+                  href="https://huggingface.co/datasets/ai4bharat/MSMARCO-XI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'inherit', textDecoration: 'none', cursor: 'default' }}
+                >MSMARCO-XI</a>
+              </p>
             </div>
           </div>
 
@@ -415,9 +492,13 @@ export default function App() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 flex-1 min-h-0 xl:overflow-hidden">
 
-          <div className="lg:col-span-5 flex flex-col gap-4 sm:gap-6">
+          <div className="hidden xl:flex xl:col-span-3 flex-col gap-4 sm:gap-6 min-h-0">
+            {renderHistoryCard('', true)}
+          </div>
+
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 sm:gap-6 xl:overflow-y-auto xl:min-h-0">
 
             <div className="backdrop-blur-2xl rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),_0_16px_40px_rgba(0,0,0,0.5)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
               <div className="flex items-center justify-between mb-6">
@@ -476,7 +557,7 @@ export default function App() {
                   >
                     Upload audio file
                   </button>
-                  <span className="text-[9px] font-mono" style={{ color: currentTheme.textMuted }}>wav · mp3 · m4a · ogg · webm · flac · max 10MB</span>
+                  <span className="text-[9px] font-mono" style={{ color: currentTheme.textMuted }}>wav · mp3 · m4a · ogg · webm · flac · max 5MB</span>
                 </div>
               </div>
             </div>
@@ -517,7 +598,7 @@ export default function App() {
 
           </div>
 
-          <div className="lg:col-span-7 flex flex-col gap-4 sm:gap-6">
+          <div className="lg:col-span-7 xl:col-span-5 flex flex-col gap-4 sm:gap-6 xl:overflow-y-auto xl:min-h-0">
 
             <div className="backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
               <div className="px-5 py-3 flex justify-between items-center" style={{ borderBottomColor: currentTheme.cardBorder, borderBottomWidth: '1px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
@@ -683,59 +764,7 @@ export default function App() {
 
             </div>
 
-            <div className="backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
-              <div className="px-5 py-3 flex justify-between items-center" style={{ borderBottomColor: currentTheme.cardBorder, borderBottomWidth: '1px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                <div className="text-xs font-medium flex items-center gap-2" style={{ color: currentTheme.textMain }}>
-                  <History size={14} style={{ color: currentTheme.accent }} /> Query History
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent }}>{history.length}/{MAX_HISTORY}</span>
-                </div>
-                {history.length > 0 && (
-                  <button
-                    onClick={clearHistory}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-md transition-opacity hover:opacity-70"
-                    style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <div className="p-4 space-y-2 max-h-[280px] overflow-y-auto">
-                {history.length === 0 ? (
-                  <span className="italic font-light text-xs" style={{ color: currentTheme.textMuted }}>Queries asked on this device will be saved here...</span>
-                ) : (
-                  history.map((h, i) => (
-                    <div
-                      key={h.ts}
-                      onClick={() => loadTraceFromHistory(h)}
-                      className={`animate-row-in rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-all hover:-translate-y-px ${h.timings && Object.keys(h.timings).length > 0 ? 'cursor-pointer hover:opacity-80' : ''}`}
-                      style={{
-                        backgroundColor: selectedTs === h.ts ? currentTheme.accentBg : 'rgba(0,0,0,0.15)',
-                        borderLeft: selectedTs === h.ts ? `2px solid ${currentTheme.accent}` : '2px solid transparent',
-                        animationDelay: `${Math.min(i * 40, 240)}ms`
-                      }}
-                      title={h.timings ? `stt ${h.timings.stt_ms ?? '-'} / embed ${h.timings.embed_ms ?? '-'} / retrieve ${h.timings.retrieve_ms ?? '-'} / generate ${h.timings.generate_ms ?? '-'} ms` : undefined}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium truncate" style={{ color: currentTheme.textMain }}>{h.transcript || '(unrecognized audio)'}</div>
-                        <div className="text-[11px] leading-snug line-clamp-2 mt-0.5" style={{ color: currentTheme.textMuted }}>{h.answer}</div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <span
-                          className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                          style={{
-                            backgroundColor: h.refused ? 'rgba(244, 63, 94, 0.12)' : currentTheme.accentBg,
-                            color: h.refused ? '#FB7185' : h.latency > 200 ? '#F59E0B' : currentTheme.accent
-                          }}
-                        >
-                          {h.latency}ms
-                        </span>
-                        <div className="text-[9px] font-mono mt-1" style={{ color: currentTheme.textMuted }}>{new Date(h.ts).toLocaleTimeString()}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            {renderHistoryCard('xl:hidden')}
 
           </div>
 
@@ -743,7 +772,7 @@ export default function App() {
 
       </div>
 
-      <footer className="w-full max-w-6xl pt-4 sm:pt-6 flex flex-col sm:flex-row items-center justify-between text-xs gap-3 relative z-10" style={{ borderTopColor: currentTheme.cardBorder, borderTopWidth: '1px', color: currentTheme.textMuted }}>
+      <footer className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1680px] pt-4 sm:pt-6 flex flex-col sm:flex-row items-center justify-between text-xs gap-3 relative z-10" style={{ borderTopColor: currentTheme.cardBorder, borderTopWidth: '1px', color: currentTheme.textMuted }}>
         <div className="flex items-center gap-2 font-mono">
           <Zap size={14} style={{ color: currentTheme.accent }} /> Retrieval SLA: &lt; 200ms &bull; E2E reported per query
         </div>
