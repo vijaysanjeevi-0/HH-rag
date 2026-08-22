@@ -240,6 +240,8 @@ export default function App() {
         transcript: data.transcript || '',
         answer: data.answer || '',
         latency: elapsed,
+        provider: config.provider,
+        strategy: config.strategy,
         refused: !!data.refused,
         refusalReason: data.refusal_reason || null,
         fallback: data.fallback || null,
@@ -265,8 +267,9 @@ export default function App() {
   };
 
   const loadTraceFromHistory = (h) => {
-    if (!h.timings || Object.keys(h.timings).length === 0) return;
-    setTrace(h.timings);
+    setOutput({ transcript: h.transcript || '', answer: h.answer || '' });
+    setLatency(typeof h.latency === 'number' ? h.latency : 0);
+    setTrace(h.timings && Object.keys(h.timings).length > 0 ? h.timings : null);
     setSelectedTs(h.ts);
   };
 
@@ -295,13 +298,13 @@ export default function App() {
             <div
               key={h.ts}
               onClick={() => loadTraceFromHistory(h)}
-              className={`animate-row-in rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-all hover:-translate-y-px ${h.timings && Object.keys(h.timings).length > 0 ? 'cursor-pointer hover:opacity-80' : ''}`}
+              className="animate-row-in rounded-xl px-3 py-2 flex items-start justify-between gap-3 transition-all hover:-translate-y-px cursor-pointer hover:opacity-80"
               style={{
                 backgroundColor: selectedTs === h.ts ? currentTheme.accentBg : 'rgba(0,0,0,0.15)',
                 borderLeft: selectedTs === h.ts ? `2px solid ${currentTheme.accent}` : '2px solid transparent',
                 animationDelay: `${Math.min(i * 40, 240)}ms`
               }}
-              title={h.timings ? `stt ${h.timings.stt_ms ?? '-'} / embed ${h.timings.embed_ms ?? '-'} / retrieve ${h.timings.retrieve_ms ?? '-'} / generate ${h.timings.generate_ms ?? '-'} ms` : undefined}
+              title={`${[h.provider, h.strategy].filter(Boolean).join(' · ') || '-'} | stt ${h.timings.stt_ms ?? '-'} / embed ${h.timings.embed_ms ?? '-'} / retrieve ${h.timings.retrieve_ms ?? '-'} / generate ${h.timings.generate_ms ?? '-'} ms`}
             >
               <div className="min-w-0">
                 <div className="text-xs font-medium truncate" style={{ color: currentTheme.textMain }}>{h.transcript || '(unrecognized audio)'}</div>
@@ -327,6 +330,12 @@ export default function App() {
   );
 
   const currentTheme = THEMES[theme];
+  const viewed = history.find((h) => h.ts === selectedTs) || null;
+  const activeProvider = viewed?.provider || config.provider;
+  const activeStrategy = viewed?.strategy || config.strategy;
+  const coreMs = trace && typeof trace.embed_ms === 'number'
+    ? (trace.embed_ms || 0) + (trace.retrieve_ms || 0)
+    : null;
 
   return (
     <div
@@ -605,7 +614,12 @@ export default function App() {
                 <div className="text-xs font-medium flex items-center gap-2" style={{ color: currentTheme.textMain }}>
                   <Activity size={14} style={{ color: currentTheme.accent }} /> STT Transcript
                 </div>
-                <span className="text-[10px] font-mono capitalize" style={{ color: currentTheme.textMuted }}>{config.provider} Engine</span>
+                <div className="flex items-center gap-1.5">
+                  {viewed && (
+                    <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md" style={{ backgroundColor: 'rgba(0,0,0,0.25)', color: currentTheme.textMuted }}>replay</span>
+                  )}
+                  <span className="text-[10px] font-mono capitalize" style={{ color: currentTheme.textMuted }}>{activeProvider} Engine</span>
+                </div>
               </div>
               <div className="p-5 text-xs sm:text-sm leading-relaxed min-h-[75px] flex items-center" style={{ color: currentTheme.textMain }}>
                 {sysState === SYSTEM_STATES.COMPUTING ? (
@@ -626,7 +640,10 @@ export default function App() {
                 <div className="text-xs font-medium flex items-center gap-2" style={{ color: currentTheme.textMain }}>
                   <Database size={14} style={{ color: currentTheme.accent }} /> Synthesized RAG Response
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}>MSMARCO-XI</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md capitalize" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}>{activeStrategy}</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md hidden sm:inline" style={{ backgroundColor: currentTheme.accentBg, color: currentTheme.accent, borderColor: currentTheme.accentBorder, borderWidth: '1px' }}>MSMARCO-XI</span>
+                </div>
               </div>
               <div className="p-5 text-xs sm:text-sm leading-relaxed min-h-[110px] flex items-center" style={{ color: currentTheme.textMain }}>
                 {sysState === SYSTEM_STATES.COMPUTING ? (
@@ -636,7 +653,23 @@ export default function App() {
                     <div className="h-2.5 rounded w-4/6" style={{ backgroundColor: currentTheme.accentBg }}></div>
                   </div>
                 ) : output.answer ? (
-                  <span key={output.answer} className="animate-rise-in">{output.answer}</span>
+                  <div key={output.answer} className="w-full animate-rise-in">
+                    {(viewed?.refused || viewed?.fallback) && (
+                      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                        {viewed.refused && (
+                          <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(244, 63, 94, 0.12)', color: '#FB7185' }}>
+                            refused{viewed.refusalReason ? ` · ${viewed.refusalReason.replace(/_/g, ' ')}` : ''}
+                          </span>
+                        )}
+                        {viewed.fallback && (
+                          <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#F59E0B' }}>
+                            {viewed.fallback} fallback
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <span>{output.answer}</span>
+                  </div>
                 ) : (
                   <span className="italic font-light" style={{ color: currentTheme.textMuted }}>Synthesized response will appear here...</span>
                 )}
@@ -756,10 +789,14 @@ export default function App() {
               </div>
 
               <div className="backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] transition-colors duration-300" style={{ backgroundColor: currentTheme.cardBg, borderColor: currentTheme.cardBorder, borderWidth: '1px' }}>
-                <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>Active Provider</div>
+                <div className="text-[10px] uppercase tracking-wider font-mono" style={{ color: currentTheme.textMuted }}>RAG Core</div>
                 <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-sm font-medium capitalize" style={{ color: currentTheme.textMain }}>{config.provider}</span>
+                  <span key={coreMs ?? 'core'} className="animate-stat-pop text-xl font-semibold tracking-tight" style={{ color: coreMs !== null && coreMs <= 200 ? currentTheme.accent : '#F59E0B' }}>
+                    {coreMs !== null ? coreMs : '--'}
+                  </span>
+                  <span className="text-[10px] font-mono" style={{ color: currentTheme.textMuted }}>ms</span>
                 </div>
+                <div className="text-[8px] font-mono mt-1" style={{ color: currentTheme.textMuted }}>embed + retrieve &middot; target &lt;200ms</div>
               </div>
 
             </div>

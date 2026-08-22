@@ -30,6 +30,7 @@ state = {"indexes": {}, "embedder": None, "ready": False}
 async def startup():
     from embedder import Embedder
     state["embedder"] = Embedder()
+    state["embedder"].embed_query("warmup")
     for strategy in config.STRATEGIES:
         state["indexes"][strategy] = load_index(strategy)
     state["ready"] = True
