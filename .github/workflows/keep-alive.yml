@@ -11,5 +11,14 @@ jobs:
     steps:
       - name: Ping /health
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://ragi-3f8o.onrender.com/health")
-          echo "health check returned $code"
+          for i in 1 2 3 4; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 75 "https://ragi-3f8o.onrender.com/health")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Backend is warm."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Backend failed to become healthy after 4 attempts." >&2
+          exit 1

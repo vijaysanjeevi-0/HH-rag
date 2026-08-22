@@ -6,7 +6,7 @@ import llm
 import stt
 
 
-async def run_query(indexes, embedder, audio_bytes=None, text=None, stt_provider="sarvam", chunking_strategy="hybrid-semantic", use_guardrails=True):
+async def run_query(indexes, embedder, audio_bytes=None, text=None, stt_provider="elevenlabs", chunking_strategy="hybrid-semantic", use_guardrails=True):
     timings = {}
     t0 = time.perf_counter()
 

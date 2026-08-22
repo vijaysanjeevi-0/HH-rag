@@ -13,6 +13,9 @@ Speak a question -> the pipeline transcribes it, retrieves relevant context from
 - Multiple chunking strategies: hybrid semantic + overlap, hierarchical parent-child, metadata-aware
 - Grounding guardrails: unsafe-input blocking, off-topic refusal with reasons, hallucination checks
 - Live latency analytics: per-query E2E latency plus true P50 / P70 / P100 percentiles (persisted in localStorage)
+- Pipeline Trace: per-leg telemetry rendered as a proportional timeline (STT -> Embed -> Retrieve -> Generate) after every query, with an in-flight indicator while executing
+- On-device query history: last 20 request/response records with full per-leg timings, persisted in localStorage; click any record to replay its trace
+- Dual themes: one-click Dawn / Dusk switch across the entire UI
 
 ## Tech stack
 

@@ -73,8 +73,16 @@ PROVIDER_FNS = {
 }
 
 
+FALLBACK_CHAIN = ("elevenlabs", "groq-whisper", "sarvam")
+
+
 async def transcribe(audio_bytes, provider):
-    fn = PROVIDER_FNS.get(provider)
-    if not fn:
-        raise RuntimeError(f"Unknown STT provider: {provider}")
-    return await fn(audio_bytes)
+    order = [provider] if provider in PROVIDER_FNS else []
+    order += [p for p in FALLBACK_CHAIN if p != provider]
+    last_err = None
+    for p in order:
+        try:
+            return await PROVIDER_FNS[p](audio_bytes)
+        except Exception as e:
+            last_err = e
+    raise RuntimeError(f"All STT providers failed ({provider} first): {last_err}")
